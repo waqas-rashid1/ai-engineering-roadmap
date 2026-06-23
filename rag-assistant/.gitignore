@@ -1,0 +1,22 @@
+# Virtual environment — never commit; each machine creates its own
+venv/
+venv.broken/
+
+# Vector database — auto-created in Step 3
+chroma_db/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Secrets — API keys belong in environment variables, not files
+.env
+.env.*
+!.env.example
+
+# OS / editor noise
+.DS_Store
+.idea/
+.vscode/

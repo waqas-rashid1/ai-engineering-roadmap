@@ -1,0 +1,13 @@
+RAG Assistant — Sample Document
+
+Retrieval-Augmented Generation (RAG) lets a language model answer questions
+using your own documents instead of relying only on what it learned during training.
+
+The basic pipeline has four stages:
+1. Load — read PDFs or text files into plain text
+2. Chunk — split long text into smaller, searchable pieces
+3. Embed — turn each chunk into a vector that captures meaning
+4. Retrieve — find the chunks most similar to the user's question
+
+This sample file is a stand-in until you add your own PDFs in Step 1.
+Chunk size and overlap will affect how well retrieval works — you'll tune that in Step 2.
