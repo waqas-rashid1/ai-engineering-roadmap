@@ -1,80 +1,132 @@
 """
-ingest.py — Step 1: load documents into plain text with source tracking.
+ingest.py — Steps 1–2: load documents and split them into chunks.
 
 Run:
-    source venv/bin/activate
-    pip install pypdf
+    source activate.sh
     python ingest.py
 
-What this file does:
-    Reads PDF or text files and returns a list of records.
-    Each record has: text, source (filename), page (number or None).
-    That metadata is what lets the app cite "sample.txt, page 2" later.
+Pipeline so far:
+    load_file()   → [{text, source, page}, ...]     (Step 1)
+    build_chunks() → [{text, source, page, chunk_id}, ...]  (Step 2)
 """
 
 from pathlib import Path
 
-# pypdf extracts text from PDF files page by page.
-# Models can't read binary PDFs — we turn them into strings first.
 from pypdf import PdfReader
 
+
+# ---------------------------------------------------------------------------
+# Step 1 — Load documents
+# ---------------------------------------------------------------------------
 
 def load_file(path, display_name=None):
     """
     Read a PDF or text file into a list of {text, source, page} records.
 
-    Args:
-        path: Path to a .pdf, .txt, .md, etc.
-        display_name: Optional friendly name (e.g. original upload filename
-                      when the file is stored under a temp path in the UI).
-
-    Returns:
-        List of dicts, one per page (PDF) or one per file (plain text).
+    PDFs → one record per page (non-blank).
+    Text files → one record for the whole file (page is None).
     """
     path = Path(path)
-    # Use display_name when the UI saves uploads with random temp names
-    # but we still want citations to show the user's filename.
     name = display_name or path.name
     records = []
 
     if path.suffix.lower() == ".pdf":
-        # --- PDF path ---
-        # PdfReader opens the file; .pages is every page object.
         reader = PdfReader(str(path))
         for page_num, page in enumerate(reader.pages, start=1):
-            # extract_text() pulls selectable text from the page.
-            # Scanned PDFs (images only) often return "" — OCR is out of scope.
             text = page.extract_text() or ""
-            if text.strip():  # skip blank / image-only pages
+            if text.strip():
                 records.append({
                     "text": text,
                     "source": name,
                     "page": page_num,
                 })
     else:
-        # --- Plain text path (.txt, .md, ...) ---
-        # read_text loads the whole file as one string.
-        # errors="ignore" skips bytes that aren't valid UTF-8 instead of crashing.
         text = path.read_text(encoding="utf-8", errors="ignore")
         records.append({
             "text": text,
             "source": name,
-            "page": None,  # no pages in a .txt file
+            "page": None,
         })
 
     return records
 
 
-if __name__ == "__main__":
-    # Step 1 checkpoint — load sample.txt and print a preview
-    sample = Path(__file__).resolve().parent / "docs" / "sample.txt"
-    records = load_file(sample)
+# ---------------------------------------------------------------------------
+# Step 2 — Chunk the text
+# ---------------------------------------------------------------------------
 
-    print(f"Loaded {len(records)} record(s) from {sample.name}")
-    print("-" * 50)
-    print("First record keys:", list(records[0].keys()))
-    print("Source:", records[0]["source"])
-    print("Page:", records[0]["page"])
-    print("-" * 50)
-    print("Text preview (first 300 chars):")
-    print(records[0]["text"][:300])
+def chunk_text(text, chunk_size=800, overlap=150):
+    """
+    Split a long string into overlapping chunks of ~chunk_size characters.
+
+    Why not feed the whole document to the model?
+      - Context window is limited (can't fit a 200-page PDF)
+      - Embeddings work best on focused passages, not entire books
+      - Retrieval returns only the relevant pieces → precise, citable answers
+
+    Two knobs:
+      chunk_size — how big each piece is (default 800 chars ≈ ~200 tokens)
+      overlap    — shared text between neighbors so ideas split at a boundary
+                   aren't lost (default 150 chars)
+
+    Tokenization note: models count tokens, not characters. Rough rule for
+    English: 4 characters ≈ 1 token. So 800 chars ≈ 200 tokens.
+    """
+    chunks = []
+    start = 0
+    while start < len(text):
+        # Slice [start : start + chunk_size], strip whitespace at edges
+        piece = text[start : start + chunk_size].strip()
+        if piece:
+            chunks.append(piece)
+        # Advance by (chunk_size - overlap) so the next chunk reuses `overlap`
+        # characters from the end of this one
+        start += chunk_size - overlap
+    return chunks
+
+
+def build_chunks(records, chunk_size=800, overlap=150):
+    """
+    Turn loaded records into chunk records that remember their source.
+
+    Each output dict:
+      text     — the chunk content (what gets embedded and retrieved)
+      source   — filename for citations
+      page     — page number (None for plain text files)
+      chunk_id — unique ID for storage in the vector DB later
+    """
+    all_chunks = []
+    for rec in records:
+        pieces = chunk_text(rec["text"], chunk_size, overlap)
+        page_label = rec["page"] if rec["page"] is not None else 0
+        for i, piece in enumerate(pieces):
+            all_chunks.append({
+                "text": piece,
+                "source": rec["source"],
+                "page": rec["page"],
+                "chunk_id": f'{rec["source"]}-p{page_label}-{i}',
+            })
+    return all_chunks
+
+
+if __name__ == "__main__":
+    sample = Path(__file__).resolve().parent / "docs" / "sample.txt"
+
+    # Step 1 — load
+    records = load_file(sample)
+    print(f"Step 1: loaded {len(records)} record(s) from {sample.name}\n")
+
+    # Step 2 — chunk (default size)
+    chunks = build_chunks(records)
+    print(f"Step 2: created {len(chunks)} chunk(s)  (chunk_size=800, overlap=150)")
+    print("First chunk:")
+    print(chunks[0])
+    print()
+
+    # Context engineering experiment — smaller chunks = more pieces
+    small = build_chunks(records, chunk_size=400, overlap=80)
+    large = build_chunks(records, chunk_size=1200, overlap=150)
+    print("Chunk count vs size (same document):")
+    print(f"  chunk_size=400  → {len(small)} chunks")
+    print(f"  chunk_size=800  → {len(chunks)} chunks")
+    print(f"  chunk_size=1200 → {len(large)} chunks")

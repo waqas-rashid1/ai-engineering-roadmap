@@ -6,7 +6,8 @@ Talk-to-documents RAG app — upload files, ask questions, get cited answers.
 |------|--------|--------------|
 | 0 | Done | Project setup + Claude API smoke test |
 | 1 | Done | Load PDFs/text into structured records |
-| 2–9 | Pending | Chunk → embed → retrieve → answer → UI → eval |
+| 2 | Done | Split text into overlapping chunks for retrieval |
+| 3–9 | Pending | Embed → retrieve → answer → UI → eval |
 
 ## Project structure
 
@@ -14,7 +15,7 @@ Talk-to-documents RAG app — upload files, ask questions, get cited answers.
 rag-assistant/
 ├── docs/
 │   └── sample.txt      # test document
-├── ingest.py           # Step 1 — load files → {text, source, page}
+├── ingest.py           # Steps 1–2 — load files, chunk for retrieval
 ├── test_key.py         # Step 0 — verify Anthropic API key
 ├── requirements.txt
 ├── .env.example
@@ -25,7 +26,7 @@ rag-assistant/
 
 | File | Purpose |
 |------|---------|
-| **`ingest.py`** | Reads PDF or text files. Returns a list of records with `text`, `source`, and `page` for citations. |
+| **`ingest.py`** | Loads PDF/text (Step 1), splits into overlapping chunks (Step 2). Each chunk has `text`, `source`, `page`, `chunk_id`. |
 | **`test_key.py`** | Sends one message to Claude — proves API key + SDK work. |
 | **`docs/sample.txt`** | Sample document used by the Step 1 checkpoint. |
 | **`.env`** | Your Anthropic API key (local only, gitignored). |
@@ -60,8 +61,8 @@ python test_key.py
 python ingest.py
 ```
 
-**Step 1 ✅:** prints record count, source name, and first 300 characters of text.
+**Step 2 ✅:** prints chunk count, first chunk dict, and how count changes with `chunk_size`.
 
 ## Next step
 
-**Step 2 — Chunk the text:** split records into overlapping pieces for retrieval (`chunk_text`, `build_chunks` in `ingest.py`).
+**Step 3 — Embed and store in Chroma:** turn chunks into vectors and save them in a local vector database.
