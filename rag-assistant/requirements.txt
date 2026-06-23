@@ -2,11 +2,8 @@
 anthropic>=0.40.0
 python-dotenv>=1.0.0
 
-# Steps 1–9 — install when you reach each step (or all at once):
-# chromadb>=0.5.0
-# sentence-transformers>=3.0.0
-# pypdf>=4.0.0
-# streamlit>=1.30.0
+# Step 1 — document loading
+pypdf>=4.0.0
 #
 # Tip: sentence-transformers pulls in PyTorch (~2GB). If install fails,
 # use CPU-only PyTorch first:
