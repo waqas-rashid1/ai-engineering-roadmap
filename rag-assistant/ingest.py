@@ -1,18 +1,43 @@
 """
-ingest.py — Steps 1–2: load documents and split them into chunks.
+ingest.py — Steps 1–3: load, chunk, embed, and store in Chroma.
 
 Run:
     source activate.sh
-    python ingest.py
+    python ingest.py              # full pipeline checkpoint
+    python embeddings_demo.py     # optional: see how embeddings work
 
-Pipeline so far:
-    load_file()   → [{text, source, page}, ...]     (Step 1)
-    build_chunks() → [{text, source, page, chunk_id}, ...]  (Step 2)
+Pipeline:
+    load_file()    → records
+    build_chunks() → chunks with chunk_id
+    index_chunks() → vectors stored in ./chroma_db
+    ingest_file()  → load → chunk → index (one call)
 """
 
 from pathlib import Path
 
+import chromadb
+from chromadb.utils import embedding_functions
 from pypdf import PdfReader
+
+# Project root — chroma_db lives next to this file
+_ROOT = Path(__file__).resolve().parent
+_CHROMA_PATH = _ROOT / "chroma_db"
+
+# Persistent vector DB on disk (survives restarts)
+_client = chromadb.PersistentClient(path=str(_CHROMA_PATH))
+
+# Same model as embeddings_demo.py — Chroma calls it on upsert and query
+_embed_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+    model_name="all-MiniLM-L6-v2"
+)
+
+
+def get_collection():
+    """Single place that defines our collection + embedding model."""
+    return _client.get_or_create_collection(
+        name="documents",
+        embedding_function=_embed_fn,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -20,12 +45,7 @@ from pypdf import PdfReader
 # ---------------------------------------------------------------------------
 
 def load_file(path, display_name=None):
-    """
-    Read a PDF or text file into a list of {text, source, page} records.
-
-    PDFs → one record per page (non-blank).
-    Text files → one record for the whole file (page is None).
-    """
+    """Read PDF or text into [{text, source, page}, ...]."""
     path = Path(path)
     name = display_name or path.name
     records = []
@@ -56,45 +76,19 @@ def load_file(path, display_name=None):
 # ---------------------------------------------------------------------------
 
 def chunk_text(text, chunk_size=800, overlap=150):
-    """
-    Split a long string into overlapping chunks of ~chunk_size characters.
-
-    Why not feed the whole document to the model?
-      - Context window is limited (can't fit a 200-page PDF)
-      - Embeddings work best on focused passages, not entire books
-      - Retrieval returns only the relevant pieces → precise, citable answers
-
-    Two knobs:
-      chunk_size — how big each piece is (default 800 chars ≈ ~200 tokens)
-      overlap    — shared text between neighbors so ideas split at a boundary
-                   aren't lost (default 150 chars)
-
-    Tokenization note: models count tokens, not characters. Rough rule for
-    English: 4 characters ≈ 1 token. So 800 chars ≈ 200 tokens.
-    """
+    """Split text into overlapping chunks (~800 chars ≈ 200 tokens each)."""
     chunks = []
     start = 0
     while start < len(text):
-        # Slice [start : start + chunk_size], strip whitespace at edges
         piece = text[start : start + chunk_size].strip()
         if piece:
             chunks.append(piece)
-        # Advance by (chunk_size - overlap) so the next chunk reuses `overlap`
-        # characters from the end of this one
         start += chunk_size - overlap
     return chunks
 
 
 def build_chunks(records, chunk_size=800, overlap=150):
-    """
-    Turn loaded records into chunk records that remember their source.
-
-    Each output dict:
-      text     — the chunk content (what gets embedded and retrieved)
-      source   — filename for citations
-      page     — page number (None for plain text files)
-      chunk_id — unique ID for storage in the vector DB later
-    """
+    """Records → chunks with text, source, page, chunk_id."""
     all_chunks = []
     for rec in records:
         pieces = chunk_text(rec["text"], chunk_size, overlap)
@@ -109,24 +103,59 @@ def build_chunks(records, chunk_size=800, overlap=150):
     return all_chunks
 
 
+# ---------------------------------------------------------------------------
+# Step 3 — Embed and store in Chroma
+# ---------------------------------------------------------------------------
+
+def index_chunks(chunks):
+    """
+    Embed each chunk and store in Chroma.
+
+    Chroma + embedding_function handles vectors for you:
+      - on upsert: text → embedding → stored
+      - on query (Step 4): question → embedding → nearest neighbors
+
+    upsert (not add) updates existing chunk_ids without duplicate errors.
+    """
+    collection = get_collection()
+    collection.upsert(
+        ids=[c["chunk_id"] for c in chunks],
+        documents=[c["text"] for c in chunks],
+        metadatas=[
+            {
+                "source": c["source"],
+                # Chroma metadata must be str/int/float/bool — not None
+                "page": c["page"] if c["page"] is not None else 0,
+            }
+            for c in chunks
+        ],
+    )
+    return collection.count()
+
+
+def ingest_file(path, display_name=None, chunk_size=800, overlap=150):
+    """Full pipeline: load → chunk → embed → store."""
+    records = load_file(path, display_name=display_name)
+    chunks = build_chunks(records, chunk_size, overlap)
+    total = index_chunks(chunks)
+    return len(chunks), total
+
+
 if __name__ == "__main__":
-    sample = Path(__file__).resolve().parent / "docs" / "sample.txt"
+    sample = _ROOT / "docs" / "sample.txt"
 
-    # Step 1 — load
-    records = load_file(sample)
-    print(f"Step 1: loaded {len(records)} record(s) from {sample.name}\n")
+    print("Step 3: ingest → embed → store in Chroma\n")
+    added, total = ingest_file(sample)
 
-    # Step 2 — chunk (default size)
-    chunks = build_chunks(records)
-    print(f"Step 2: created {len(chunks)} chunk(s)  (chunk_size=800, overlap=150)")
-    print("First chunk:")
-    print(chunks[0])
-    print()
+    print(f"Indexed {added} chunk(s) from {sample.name}")
+    print(f"Collection now holds {total} chunk(s) total")
+    print(f"Vector DB folder: {_CHROMA_PATH}")
+    print(f"chroma_db exists: {_CHROMA_PATH.is_dir()}")
 
-    # Context engineering experiment — smaller chunks = more pieces
-    small = build_chunks(records, chunk_size=400, overlap=80)
-    large = build_chunks(records, chunk_size=1200, overlap=150)
-    print("Chunk count vs size (same document):")
-    print(f"  chunk_size=400  → {len(small)} chunks")
-    print(f"  chunk_size=800  → {len(chunks)} chunks")
-    print(f"  chunk_size=1200 → {len(large)} chunks")
+    # Quick sanity check — collection is readable
+    col = get_collection()
+    peek = col.get(limit=1, include=["documents", "metadatas"])
+    if peek["ids"]:
+        print(f"\nStored example id: {peek['ids'][0]}")
+        print(f"Metadata: {peek['metadatas'][0]}")
+        print(f"Text preview: {peek['documents'][0][:120]}...")

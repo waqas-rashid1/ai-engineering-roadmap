@@ -7,7 +7,8 @@ Talk-to-documents RAG app — upload files, ask questions, get cited answers.
 | 0 | Done | Project setup + Claude API smoke test |
 | 1 | Done | Load PDFs/text into structured records |
 | 2 | Done | Split text into overlapping chunks for retrieval |
-| 3–9 | Pending | Embed → retrieve → answer → UI → eval |
+| 3 | Done | Embed chunks and store in Chroma vector DB |
+| 4–9 | Pending | Retrieve → answer → UI → eval |
 
 ## Project structure
 
@@ -15,7 +16,9 @@ Talk-to-documents RAG app — upload files, ask questions, get cited answers.
 rag-assistant/
 ├── docs/
 │   └── sample.txt      # test document
-├── ingest.py           # Steps 1–2 — load files, chunk for retrieval
+├── ingest.py           # Steps 1–3 — load, chunk, embed, store
+├── embeddings_demo.py  # Step 3 — see how semantic similarity works
+├── chroma_db/          # auto-created vector store (gitignored)
 ├── test_key.py         # Step 0 — verify Anthropic API key
 ├── requirements.txt
 ├── .env.example
@@ -57,12 +60,15 @@ cp .env.example .env   # add ANTHROPIC_API_KEY=...
 # Step 0 — API works
 python test_key.py
 
-# Step 1 — documents load with source metadata
+# Step 1–3 — load, chunk, index into Chroma
 python ingest.py
+
+# Optional — embedding intuition demo
+python embeddings_demo.py
 ```
 
-**Step 2 ✅:** prints chunk count, first chunk dict, and how count changes with `chunk_size`.
+**Step 3 ✅:** prints indexed chunk count and creates `chroma_db/`.
 
 ## Next step
 
-**Step 3 — Embed and store in Chroma:** turn chunks into vectors and save them in a local vector database.
+**Step 4 — Retrieve relevant chunks:** query the vector DB and get top-k similar passages (`rag.py`).

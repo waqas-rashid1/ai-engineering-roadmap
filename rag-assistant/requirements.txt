@@ -1,11 +1,18 @@
-# Step 0 — API smoke test
+# Step 0 — API
 anthropic>=0.40.0
 python-dotenv>=1.0.0
 
 # Step 1 — document loading
 pypdf>=4.0.0
-#
-# Tip: sentence-transformers pulls in PyTorch (~2GB). If install fails,
-# use CPU-only PyTorch first:
+
+# Step 3 — embeddings + vector DB
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
+numpy>=1.24.0
+
+# Install CPU-only PyTorch first (avoids ~2GB CUDA downloads):
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
-#   pip install chromadb sentence-transformers pypdf streamlit
+#   pip install -r requirements.txt
+
+# Later steps
+# streamlit>=1.30.0
