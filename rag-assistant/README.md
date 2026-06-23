@@ -32,12 +32,22 @@ rag-assistant/
 
 ## Setup
 
+The virtual environment lives at **`~/.venvs/rag-assistant`** (not inside the project folder — this drive is too slow for venv’s thousands of small files).
+
 ```bash
 cd rag-assistant
-python3.11 -m venv venv
-source venv/bin/activate
+
+# One-time: create venv (already done if you ran this with the agent)
+python3.11 -m venv ~/.venvs/rag-assistant
+
+# Every session: activate
+source activate.sh
+# or: source ~/.venvs/rag-assistant/bin/activate
+
 pip install -r requirements.txt
-cp .env.example .env   # add your key if not already done
+
+# Secrets — copy the template if you haven't yet
+cp .env.example .env   # add ANTHROPIC_API_KEY=...
 ```
 
 ## Checkpoints
