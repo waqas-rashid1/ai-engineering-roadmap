@@ -12,12 +12,14 @@ Talk-to-documents RAG app — upload files, ask questions, get cited answers.
 | 5 | Done | Claude generates grounded answers with [n] citations |
 | 6 | Done | Multi-turn chat via `history` in `ask()` |
 | 7 | Done | Streamlit UI — upload, chat, sources, memory |
-| 8–9 | Pending | Evaluation → final README |
+| 8 | Done | Evaluate retrieval + answer quality (`evaluate.py`) |
+| 9 | Pending | Final README + architecture diagram |
 
 ## Project structure
 
 ```
 rag-assistant/
+├── evaluate.py         # Step 8 — retrieval + answer metrics
 ├── app.py              # Step 7 — Streamlit UI (main app)
 ├── ingest.py           # Steps 1–3 — load, chunk, embed, store
 ├── rag.py              # Steps 4–5 — retrieve + generate
@@ -36,7 +38,7 @@ rag-assistant/
 | **`app.py`** | Full UI: upload/index docs, chat, expandable sources, session memory. |
 | **`rag.py`** | `retrieve()` + `ask()` — RAG core used by the UI. |
 | **`ingest.py`** | Load, chunk, embed, store in Chroma. |
-| **`demo_memory.py`** | CLI demo of multi-turn `history`. |
+| **`evaluate.py`** | Step 8 — golden tests: retrieval hit rate, keyword match, optional LLM judge. |
 
 ## Setup
 
@@ -69,8 +71,10 @@ python test_key.py       # Step 0
 python ingest.py         # Steps 1–3
 python rag.py            # Steps 4–5
 python demo_memory.py    # Step 6
+python evaluate.py       # Step 8 — metrics (run ingest.py first)
+python evaluate.py --judge   # Step 8 + LLM-as-judge
 ```
 
 ## Next step
 
-**Step 8 — Evaluation:** measure retrieval and answer quality (`evaluate.py`).
+**Step 9 — Final README:** architecture diagram, setup docs, demo GIF.
