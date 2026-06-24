@@ -8,7 +8,8 @@ Talk-to-documents RAG app — upload files, ask questions, get cited answers.
 | 1 | Done | Load PDFs/text into structured records |
 | 2 | Done | Split text into overlapping chunks for retrieval |
 | 3 | Done | Embed chunks and store in Chroma vector DB |
-| 4–9 | Pending | Retrieve → answer → UI → eval |
+| 4 | Done | Retrieve top-k relevant chunks from Chroma |
+| 5–9 | Pending | Generate answer → UI → eval |
 
 ## Project structure
 
@@ -17,7 +18,7 @@ rag-assistant/
 ├── docs/
 │   └── sample.txt      # test document
 ├── ingest.py           # Steps 1–3 — load, chunk, embed, store
-├── embeddings_demo.py  # Step 3 — see how semantic similarity works
+├── rag.py              # Step 4 — retrieve top-k chunks for a query
 ├── chroma_db/          # auto-created vector store (gitignored)
 ├── test_key.py         # Step 0 — verify Anthropic API key
 ├── requirements.txt
@@ -29,7 +30,8 @@ rag-assistant/
 
 | File | Purpose |
 |------|---------|
-| **`ingest.py`** | Loads PDF/text (Step 1), splits into overlapping chunks (Step 2). Each chunk has `text`, `source`, `page`, `chunk_id`. |
+| **`rag.py`** | Step 4 — `retrieve(query, k)` searches Chroma for similar chunks. |
+| **`ingest.py`** | Steps 1–3 — load, chunk, embed, store in Chroma. |
 | **`test_key.py`** | Sends one message to Claude — proves API key + SDK work. |
 | **`docs/sample.txt`** | Sample document used by the Step 1 checkpoint. |
 | **`.env`** | Your Anthropic API key (local only, gitignored). |
@@ -63,12 +65,12 @@ python test_key.py
 # Step 1–3 — load, chunk, index into Chroma
 python ingest.py
 
-# Optional — embedding intuition demo
-python embeddings_demo.py
+# Step 4 — retrieval (run ingest.py first if chroma_db is empty)
+python rag.py
 ```
 
-**Step 3 ✅:** prints indexed chunk count and creates `chroma_db/`.
+**Step 4 ✅:** top results contain text relevant to the test questions.
 
 ## Next step
 
-**Step 4 — Retrieve relevant chunks:** query the vector DB and get top-k similar passages (`rag.py`).
+**Step 5 — Generate a cited answer:** send retrieved chunks to Claude with a grounding prompt (`rag.py`).
