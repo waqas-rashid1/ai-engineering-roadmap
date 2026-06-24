@@ -11,21 +11,21 @@ Talk-to-documents RAG app — upload files, ask questions, get cited answers.
 | 4 | Done | Retrieve top-k relevant chunks from Chroma |
 | 5 | Done | Claude generates grounded answers with [n] citations |
 | 6 | Done | Multi-turn chat via `history` in `ask()` |
-| 7–9 | Pending | UI → eval → README |
+| 7 | Done | Streamlit UI — upload, chat, sources, memory |
+| 8–9 | Pending | Evaluation → final README |
 
 ## Project structure
 
 ```
 rag-assistant/
-├── docs/
-│   └── sample.txt      # test document
+├── app.py              # Step 7 — Streamlit UI (main app)
 ├── ingest.py           # Steps 1–3 — load, chunk, embed, store
-├── demo_memory.py      # Step 6 — multi-turn conversation demo
-├── rag.py              # Steps 4–5 — retrieve chunks, generate cited answers
-├── chroma_db/          # auto-created vector store (gitignored)
-├── test_key.py         # Step 0 — verify Anthropic API key
-├── requirements.txt
-├── .env.example
+├── rag.py              # Steps 4–5 — retrieve + generate
+├── demo_memory.py      # Step 6 — CLI memory demo
+├── embeddings_demo.py  # Step 3 — embedding intuition
+├── test_key.py         # Step 0 — API smoke test
+├── docs/sample.txt
+├── chroma_db/          # vector store (gitignored)
 └── README.md
 ```
 
@@ -33,48 +33,44 @@ rag-assistant/
 
 | File | Purpose |
 |------|---------|
-| **`demo_memory.py`** | Step 6 — shows follow-up questions using `ask(..., history=...)`. |
-| **`rag.py`** | `retrieve()` + `ask()` — supports optional `history` for multi-turn chat. |
-| **`ingest.py`** | Steps 1–3 — load, chunk, embed, store in Chroma. |
-| **`test_key.py`** | Sends one message to Claude — proves API key + SDK work. |
-| **`docs/sample.txt`** | Sample document used by the Step 1 checkpoint. |
-| **`.env`** | Your Anthropic API key (local only, gitignored). |
+| **`app.py`** | Full UI: upload/index docs, chat, expandable sources, session memory. |
+| **`rag.py`** | `retrieve()` + `ask()` — RAG core used by the UI. |
+| **`ingest.py`** | Load, chunk, embed, store in Chroma. |
+| **`demo_memory.py`** | CLI demo of multi-turn `history`. |
 
 ## Setup
 
-The virtual environment lives at **`~/.venvs/rag-assistant`** (not inside the project folder — this drive is too slow for venv’s thousands of small files).
+Virtual env: **`~/.venvs/rag-assistant`** (see `activate.sh`).
 
 ```bash
 cd rag-assistant
-
-# One-time: create venv (already done if you ran this with the agent)
-python3.11 -m venv ~/.venvs/rag-assistant
-
-# Every session: activate
 source activate.sh
-# or: source ~/.venvs/rag-assistant/bin/activate
-
+pip install torch --index-url https://download.pytorch.org/whl/cpu  # first time only
 pip install -r requirements.txt
-
-# Secrets — copy the template if you haven't yet
-cp .env.example .env   # add ANTHROPIC_API_KEY=...
+cp .env.example .env   # add ANTHROPIC_API_KEY
 ```
 
-## Checkpoints
+## Run the app (Step 7)
 
 ```bash
-# Step 0 — API works
-python test_key.py
-
-# Step 1–3 — load, chunk, index into Chroma
-python ingest.py
-
-# Step 6 — multi-turn memory (follow-ups like "what does the third one do?")
-python demo_memory.py
+source activate.sh
+streamlit run app.py
 ```
 
-**Step 6 ✅:** turn 2 answers correctly even though it never names "embed" — history carries context.
+1. Upload a PDF or `.txt` in the sidebar → **Index documents**
+2. Ask a question in the chat box
+3. Expand **Sources** to see retrieved chunks
+4. Ask a follow-up — memory carries prior turns
+
+## CLI checkpoints
+
+```bash
+python test_key.py       # Step 0
+python ingest.py         # Steps 1–3
+python rag.py            # Steps 4–5
+python demo_memory.py    # Step 6
+```
 
 ## Next step
 
-**Step 7 — Streamlit UI:** file upload + chat interface (`app.py`).
+**Step 8 — Evaluation:** measure retrieval and answer quality (`evaluate.py`).

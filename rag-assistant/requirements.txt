@@ -14,5 +14,5 @@ numpy>=1.24.0
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 #   pip install -r requirements.txt
 
-# Later steps
-# streamlit>=1.30.0
+# Step 7 — UI
+streamlit>=1.30.0
