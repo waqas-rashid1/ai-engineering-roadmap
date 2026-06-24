@@ -9,7 +9,8 @@ Talk-to-documents RAG app — upload files, ask questions, get cited answers.
 | 2 | Done | Split text into overlapping chunks for retrieval |
 | 3 | Done | Embed chunks and store in Chroma vector DB |
 | 4 | Done | Retrieve top-k relevant chunks from Chroma |
-| 5–9 | Pending | Generate answer → UI → eval |
+| 5 | Done | Claude generates grounded answers with [n] citations |
+| 6–9 | Pending | Memory → UI → eval |
 
 ## Project structure
 
@@ -18,7 +19,7 @@ rag-assistant/
 ├── docs/
 │   └── sample.txt      # test document
 ├── ingest.py           # Steps 1–3 — load, chunk, embed, store
-├── rag.py              # Step 4 — retrieve top-k chunks for a query
+├── rag.py              # Steps 4–5 — retrieve chunks, generate cited answers
 ├── chroma_db/          # auto-created vector store (gitignored)
 ├── test_key.py         # Step 0 — verify Anthropic API key
 ├── requirements.txt
@@ -30,7 +31,7 @@ rag-assistant/
 
 | File | Purpose |
 |------|---------|
-| **`rag.py`** | Step 4 — `retrieve(query, k)` searches Chroma for similar chunks. |
+| **`rag.py`** | `retrieve()` finds similar chunks (Step 4). `ask()` retrieves + calls Claude with citations (Step 5). |
 | **`ingest.py`** | Steps 1–3 — load, chunk, embed, store in Chroma. |
 | **`test_key.py`** | Sends one message to Claude — proves API key + SDK work. |
 | **`docs/sample.txt`** | Sample document used by the Step 1 checkpoint. |
@@ -65,12 +66,12 @@ python test_key.py
 # Step 1–3 — load, chunk, index into Chroma
 python ingest.py
 
-# Step 4 — retrieval (run ingest.py first if chroma_db is empty)
+# Step 4–5 — retrieval + cited answer (run ingest.py first)
 python rag.py
 ```
 
-**Step 4 ✅:** top results contain text relevant to the test questions.
+**Step 5 ✅:** grounded answer with `[1]` citations; off-topic questions get "don't have enough information."
 
 ## Next step
 
-**Step 5 — Generate a cited answer:** send retrieved chunks to Claude with a grounding prompt (`rag.py`).
+**Step 6 — Conversation memory:** multi-turn follow-ups via `ask(query, history=...)`.

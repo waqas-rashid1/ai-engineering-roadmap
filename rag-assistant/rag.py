@@ -1,42 +1,113 @@
 """
-rag.py — Step 4: retrieve the most relevant chunks for a question.
+rag.py — Steps 4–5: retrieve relevant chunks and generate cited answers.
 
 Run (index first if chroma_db is empty):
     source activate.sh
-    python ingest.py          # ensure sample.txt is indexed
-    python rag.py             # retrieval checkpoint
+    python ingest.py
+    python rag.py
 
-This is the "R" in RAG — Retrieval.
-Generation (Claude answering) comes in Step 5.
+Step 4: retrieve()  — the "R" in RAG (Retrieval)
+Step 5: ask()       — the "G" in RAG (Generation via Claude)
 """
+
+from pathlib import Path
+
+import anthropic
+from dotenv import load_dotenv
 
 from ingest import get_collection
 
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
+# ---------------------------------------------------------------------------
+# Step 5 — Generation (Claude)
+# ---------------------------------------------------------------------------
+
+client = anthropic.Anthropic()
+
+# System prompt = rules the model must follow for every answer.
+# Kept separate from the user message (data + question).
+SYSTEM_PROMPT = """You are a helpful assistant that answers questions using ONLY the provided context passages.
+
+Rules:
+- Use only the information in the numbered context passages below.
+- Cite the passages you rely on by their number in square brackets, e.g. [1] or [2].
+- If the answer is not contained in the context, say you don't have enough information. Never invent facts.
+- Be clear and concise."""
+
+
+def build_context(chunks):
+    """
+    Format retrieved chunks as numbered passages for citations.
+
+    Example output:
+        [1] (from sample.txt)
+        RAG lets a language model answer questions using your documents...
+
+        [2] (from report.pdf, p.3)
+        Chunk text here...
+    """
+    blocks = []
+    for i, c in enumerate(chunks, start=1):
+        loc = c["source"]
+        if c["page"]:
+            loc += f", p.{c['page']}"
+        blocks.append(f"[{i}] (from {loc})\n{c['text']}")
+    return "\n\n".join(blocks)
+
+
+def answer(query, chunks, history=None):
+    """
+    Send retrieved chunks + question to Claude; return the reply text.
+
+    Args:
+        query:   User question
+        chunks:  Output of retrieve()
+        history: Optional prior turns for multi-turn chat (Step 6)
+    """
+    history = history or []
+    context = build_context(chunks)
+
+    # User message = data (context) + task (question)
+    user_message = f"Context passages:\n\n{context}\n\nQuestion: {query}"
+
+    response = client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1000,
+        temperature=0,  # deterministic, factual — raise for creative tasks
+        system=SYSTEM_PROMPT,
+        messages=history + [{"role": "user", "content": user_message}],
+    )
+    return response.content[0].text
+
+
+def ask(query, history=None, k=4):
+    """
+    Full RAG pipeline: retrieve → generate.
+
+    Returns:
+        (answer_text, source_chunks) — answer for the user, chunks for UI/citations
+    """
+    chunks = retrieve(query, k=k)
+    text = answer(query, chunks, history=history)
+    return text, chunks
+
+
+# ---------------------------------------------------------------------------
+# Step 4 — Retrieval (Chroma)
+# ---------------------------------------------------------------------------
 
 def retrieve(query, k=4):
     """
     Find the k chunks whose embeddings are closest to the query.
 
-    How it works:
-      1. Chroma embeds your question with the same model used at index time
-      2. Compares that vector to every stored chunk vector
-      3. Returns the k nearest matches (text + metadata + distance)
-
-    Args:
-        query: Natural-language question, e.g. "What is RAG?"
-        k:     How many chunks to return. Higher k = more context, more noise.
-
-    Returns:
-        List of dicts: text, source, page, distance (lower = more similar).
+    Chroma embeds the question with the same model used at index time,
+    then returns nearest neighbors (lower distance = more similar).
     """
     collection = get_collection()
-
-    # query_texts: list of questions (we send one).
-    # n_results: top-k nearest neighbors by vector distance.
     results = collection.query(query_texts=[query], n_results=k)
 
     chunks = []
-    # results["documents"][0] — matches for the first (only) query
     for text, meta, dist in zip(
         results["documents"][0],
         results["metadatas"][0],
@@ -51,30 +122,25 @@ def retrieve(query, k=4):
     return chunks
 
 
+def _format_source(i, c):
+    loc = c["source"]
+    if c["page"]:
+        loc += f" p.{c['page']}"
+    return f"[{i}] {loc} (distance {c['distance']:.3f})"
+
+
 if __name__ == "__main__":
-    # Questions we know sample.txt can answer — good retrieval should hit them
-    test_queries = [
-        "What are the four stages of the RAG pipeline?",
-        "What is chunk size and overlap?",
-        "How do quarterly revenue numbers look?",  # not in doc — may still return something
+    tests = [
+        ("What are the four stages of the RAG pipeline?", True),
+        ("How do quarterly revenue numbers look?", False),  # not in sample.txt
     ]
 
-    for query in test_queries:
+    for question, expect_answer in tests:
         print("=" * 60)
-        print(f"Query: {query}\n")
-        hits = retrieve(query, k=3)
-
-        if not hits:
-            print("No results — run `python ingest.py` first to index documents.\n")
-            continue
-
-        for i, h in enumerate(hits, 1):
-            # page 0 means plain text file (no PDF pages)
-            loc = h["source"]
-            if h["page"]:
-                loc += f" p.{h['page']}"
-            print(f"--- Result {i}  (distance {h['distance']:.3f}, {loc}) ---")
-            print(h["text"][:250].strip())
-            if len(h["text"]) > 250:
-                print("...")
-            print()
+        print(f"Q: {question}\n")
+        text, sources = ask(question, k=3)
+        print(f"A: {text}\n")
+        print("Sources:")
+        for i, c in enumerate(sources, 1):
+            print(f"  {_format_source(i, c)}")
+        print()
