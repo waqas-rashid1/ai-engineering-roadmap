@@ -315,4 +315,4 @@ When stuck, ask in order:
 
 ---
 
-*Last updated: June 2025*
+*Last updated: June 2026*

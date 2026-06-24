@@ -1,6 +1,6 @@
 # AI Engineering Roadmap
 
-A **learn-by-building** journey from writing code to shipping real AI products — one guided project per week.
+A **learn-by-building** journey from writing code to shipping real AI products — at least one guided project per week.
 
 This repository is the home for the full roadmap, weekly project code, build guides, and progress updates. It is **not** a single-project repo; new projects are added here as the path continues.
 
@@ -124,8 +124,8 @@ ai-engineering-roadmap/
 
 ## Author
 
-**[waqas-rashid1](https://github.com/waqas-rashid1)** — documenting the path to AI Engineering in public, one project per week.
+**[waqas-rashid1](https://github.com/waqas-rashid1)** — documenting the path to AI Engineering in public, at least one project per week.
 
 ---
 
-*Last updated: June 2025 · Week 1 complete*
+*Last updated: June 2026 · Week 1 complete*
